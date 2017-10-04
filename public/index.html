@@ -1,0 +1,387 @@
+﻿﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Node Kinect2 Client</title>
+    <link rel="stylesheet" href="">
+</head>
+<body>
+    <p id="gesturePar"></p>
+    <p id="labelPar"></p>
+    <p id="distPar"></p>
+    <p id="handsDistPar"></p>
+    <canvas id="bodyCanvas" width="512" height="424"></canvas>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        var socket = io.connect('/');
+        var canvas = document.getElementById('bodyCanvas');
+        var ctx = canvas.getContext('2d');
+        var colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff', '#ff00ff'];
+
+        // handstate circle size
+        var HANDSIZE = 20;
+
+        // closed hand state color
+        var HANDCLOSEDCOLOR = "red";
+
+        // open hand state color
+        var HANDOPENCOLOR = "green";
+
+        // lasso hand state color
+            var HANDLASSOCOLOR = "blue";
+
+
+
+        function updateHandState(handState, jointPoint) 
+        {
+            //console.log("function updateHandState(handState, jointPoint)  ");
+
+            switch (handState) 
+            {
+                case 3:
+                    drawHand(jointPoint, HANDCLOSEDCOLOR);
+                break;
+
+                case 2:
+                    drawHand(jointPoint, HANDOPENCOLOR);
+                break;
+
+                case 4:
+                    drawHand(jointPoint, HANDLASSOCOLOR);
+                break;
+            }
+        }
+
+        //COMMON VARS
+        var leftHandRelPosX = 0;
+        var leftHandRelPosY = 0;
+        var leftHandRelPosZ = 0;
+
+        var leftHandRelPosXOld = 0;
+        var leftHandRelPosYOld = 0;
+        var leftHandRelPosZOld = 0;
+
+
+        var rightHandRelPosX = 0;
+        var rightHandRelPosY = 0;
+        var rightHandRelPosZ = 0;
+
+        var rightHandRelPosXOld = 0;
+        var rightHandRelPosYOld = 0;
+        var rightHandRelPosZOld = 0;
+
+        var mGesture = 0; //0 - none; 1 - hands slide out; 2 - hands move up
+        var mState = 0; //0 - inactive, 1 - started, 2 - pending, 3 - ended
+        var mOutputDist = 0; 
+
+        var mMinDistBetweenHandsX = 0.2;
+        var mMaxDistBetweenHandsY = 0.2;
+        var mMinSpeedHands = 0.003; //so far 0.01 tested; last tested 0.0000003;
+
+        var mInitialDistToTriggerX = 0.1;//the initial distance to be covered before the motion is considered initiated
+        var mInitialDistCurrentX = 0;
+        var mInitialDistToTriggerY = 0.2;//the initial distance to be covered before the motion is considered initiated
+        var mInitialDistCurrentY = 0;
+
+        var mCurrentDistHands = 0;
+        var mPrevDistHands = 0;
+        var mDistHandsThres = 0.002; //the minimum value of distance between hands to start/stop gesture
+
+        //GESTURE HANDS SLIDE OUT
+        //if start distance between hands in X higher than a predefined value
+        //and distance between hands in Y lower than a predefined value
+        //and speed of hand movement higher than minimum
+        //and initial distance covered
+        //do gesture
+        //until the distance between hands does not decrease above threshold
+        //the distance travelled (measured here as the entire change of distance between hands from start to finish)
+
+
+        //GESTURE HANDS MOVE UP
+        //if distance between hands in X higher than a predefined value
+        //and distance between hands in Y lower than a predefined value
+        //and speed of hand movement higher than minimum
+        //and none of the hands is closed
+        //do gesture
+        //the distance travelled (measured here as the distance travelled by left hand)
+
+
+        function gesturesAll(body)
+        {
+            //COMMON
+
+            var torsoPosX = body.joints[1].depthX;
+            var torsoPosY = body.joints[1].depthY;
+            var torsoPosZ = body.joints[1].depthZ;
+
+
+            var leftHandPosX = body.joints[7].depthX;
+            var leftHandPosY = body.joints[7].depthY;
+            var leftHandPosZ = body.joints[7].depthZ;
+
+            var rightHandPosX = body.joints[11].depthX;
+            var rightHandPosY = body.joints[11].depthY;
+            var rightHandPosZ = body.joints[11].depthZ;
+
+            var leftHandRelPosX = leftHandPosX - torsoPosX;
+            var leftHandRelSpeedX = leftHandRelPosX - leftHandRelPosXOld;
+            var leftHandRelPosY = leftHandPosY - torsoPosY;
+            var leftHandRelSpeedY = leftHandRelPosY - leftHandRelPosYOld;
+            var leftHandRelPosZ = leftHandPosZ - torsoPosZ;
+            var leftHandRelSpeedZ = leftHandRelPosZ - leftHandRelPosZOld;
+
+            var rightHandRelPosX = rightHandPosX - torsoPosX;
+            var rightHandRelSpeedX = rightHandRelPosX - rightHandRelPosXOld;
+            var rightHandRelPosY = rightHandPosY - torsoPosY;
+            var rightHandRelSpeedY = rightHandRelPosY - rightHandRelPosYOld;
+            var rightHandRelPosZ = rightHandPosZ - torsoPosZ;
+            var rightHandRelSpeedZ = rightHandRelPosZ - rightHandRelPosZOld;
+
+            //GESTURE SPECIFIC
+            mCurrentDistHands = Math.abs(leftHandRelPosX - rightHandRelPosX);
+
+            if (mState == 0)
+            {
+                //condition for starting the gesture
+                //if start distance between hands in X higher than a predefined value
+                //and distance between hands in Y lower than a predefined value
+                //and initial distance is covered
+                //initiate gesture
+
+                if (Math.abs(leftHandRelPosX - rightHandRelPosX) > mMinDistBetweenHandsX
+                    && Math.abs(leftHandRelPosY - rightHandRelPosY) < mMaxDistBetweenHandsY)
+                {
+                    printOutput("Gesture initiating");
+
+                    //if both hands moving above minimum speed - X AXIS - gesture 1
+                    if (Math.abs(leftHandRelSpeedX) > mMinSpeedHands && Math.abs(rightHandRelSpeedX) > mMinSpeedHands)
+                    {
+                        mInitialDistCurrentX += Math.abs(leftHandRelSpeedX) + Math.abs(rightHandRelSpeedX);
+                    }
+
+                    //if both hands moving above minimum speed - Y AXIS - gesture 2
+                    if (Math.abs(leftHandRelSpeedY) > mMinSpeedHands && Math.abs(rightHandRelSpeedY) > mMinSpeedHands)
+                    {
+                        //here interested in Y
+                        mInitialDistCurrentY += Math.abs(leftHandRelSpeedY);
+                    }
+
+                    if (mInitialDistCurrentX > mInitialDistToTriggerX)
+                    {
+                        mInitialDistCurrentX = 0;
+                        mState = 1;
+
+                        mGesture = 1;
+                    }
+                    else if (mInitialDistCurrentY > mInitialDistToTriggerY)
+                    {
+                        mInitialDistCurrentY = 0;
+                        mState = 1;
+
+                        mGesture = 2;
+                    }
+                }
+                else
+                {
+                    mInitialDistCurrentX = 0;
+                    mInitialDistCurrentY = 0;
+                }
+            }
+            else if (mState == 1)
+            {
+                mState = 2;
+
+                printOutput("Gesture initiated");
+            }
+            else if (mState == 2)
+            {
+                //condition for ending the gesture
+                //if distance between hands in X lower than a predefined value
+                //and distance between hands in Y higher than a predefined value
+                //also if the distance between the hands decreased from previous frame - we cancel the gesture
+
+                if (mGesture == 1)
+                {
+                    var canContinue = true;
+
+                    if (Math.abs(leftHandRelPosX - rightHandRelPosX) < mMinDistBetweenHandsX)
+                    {
+                        canContinue = false;
+                        printOutput("Gesture ended: hands too close in X");
+                    }
+
+                    if (Math.abs(leftHandRelPosY - rightHandRelPosY) > mMaxDistBetweenHandsY)
+                    {
+                        canContinue = false;
+                        printOutput("Gesture ended: hands too far in Y");
+                    }
+
+                    //if hands sliding in
+                    if (mCurrentDistHands - mPrevDistHands < - mDistHandsThres)
+                    {
+                        canContinue = false;
+                        printOutput("Gesture ended: hands sliding in instead of out");
+                    }
+
+                    if (!canContinue)
+                    {
+                        mState = 3;
+                    }
+                    else
+                    {
+                        printOutput("Gesture pending: Hands Slide Out");
+                    }
+                }
+                else if (mGesture == 2)
+                {
+                    if ((Math.abs(leftHandRelPosX - rightHandRelPosX) > mMinDistBetweenHandsX && Math.abs(leftHandRelPosY - rightHandRelPosY) < mMaxDistBetweenHandsY) &&
+                        (body.leftHandState != 3 && body.rightHandState != 3)
+                    )
+                    {
+                        if (leftHandRelSpeedY < - mMinSpeedHands)
+                        {
+                            printOutput("Gesture pending: Hands Up");
+                        }
+                        else if (leftHandRelSpeedY > mMinSpeedHands)
+                        {
+                            printOutput("Gesture ended: Hands Down");
+                            mState = 3;
+                        }
+                    }
+                    else if (Math.abs(leftHandRelPosX - rightHandRelPosX) < mMinDistBetweenHandsX)
+                    {
+                        mState = 3;
+                        printOutput("Gesture ended: Hands too close in X");
+                    }
+                    else if (Math.abs(leftHandRelPosY - rightHandRelPosY) > mMaxDistBetweenHandsY)
+                    {
+                        mState = 3;
+                        printOutput("Gesture ended: Hands too far in Y");
+                    }
+                    //for now not using this condition - Kinect too inaccurate here, to easy to break the motion
+                    //else if (body.leftHandState == 3 || body.rightHandState == 3) 
+                    //{
+                    //    mState = 3;
+                    //    printOutput("Gesture ended: One or more hands closed");
+                    //}
+
+                    //we prevent hands from sliding apart 
+                    else if (mCurrentDistHands - mPrevDistHands > mDistHandsThres)
+                    {
+                        mState = 3;
+                        printOutput("Gesture ended: Hands sliding out");
+                    }
+                }
+            }
+            else if (mState == 3)
+            {
+                mState = 0;
+                mGesture = 0;
+                printOutput("Gesture resetting.");
+            }
+
+            //COUNTING DISTANCE TRAVELLED
+            if (mState == 2)
+            {
+                if (mGesture == 1)
+                {
+                    if (Math.abs(leftHandRelSpeedX) > mMinSpeedHands && Math.abs(rightHandRelSpeedX) > mMinSpeedHands)
+                    {
+                        mOutputDist += Math.abs(leftHandRelSpeedX) + Math.abs(rightHandRelSpeedX);
+                    }
+                }
+                else if (mGesture == 2)
+                {
+                    if (Math.abs(leftHandRelSpeedY) > mMinSpeedHands && Math.abs(rightHandRelSpeedY) > mMinSpeedHands)
+                    {
+                        mOutputDist += Math.abs(leftHandRelSpeedY);
+                    }
+                }
+            }
+            else
+            {
+                mOutputDist = 0;
+            }
+
+
+            //WRITING TO OLD VALUES
+
+            leftHandRelPosXOld = leftHandRelPosX;
+            leftHandRelPosYOld = leftHandRelPosY;
+            leftHandRelPosZOld = leftHandRelPosZ;
+
+            rightHandRelPosXOld = rightHandRelPosX;
+            rightHandRelPosYOld = rightHandRelPosY;
+            rightHandRelPosZOld = rightHandRelPosZ;
+
+            mPrevDistHands = mCurrentDistHands;
+        }
+
+        function printOutput(labelToPut)
+        {
+            var gestureName = "Gesture name: ";
+
+            if (mGesture == 0)
+            {
+                document.getElementById("gesturePar").innerHTML = gestureName + "none";
+            }
+            else if (mGesture == 1)
+            {
+                document.getElementById("gesturePar").innerHTML = gestureName + "Hands Slide Out";
+            }
+            else if (mGesture == 2)
+            {
+                document.getElementById("gesturePar").innerHTML = gestureName + "Hands Move Up";
+            }
+           
+            document.getElementById("labelPar").innerHTML = labelToPut;
+
+            document.getElementById("distPar").innerHTML = "mState / mInitialDistCurrentX / mInitialDistCurrentY / mOutputDist: " + mState + " / " + mInitialDistCurrentX.toPrecision(4) + "/ " + mInitialDistCurrentY.toPrecision(4) + " / " + mOutputDist.toPrecision(4);
+            document.getElementById("handsDistPar").innerHTML = "mCurrentDistHands / mPrevDistHands: " + mCurrentDistHands.toPrecision(4) + " / " + mPrevDistHands.toPrecision(4);
+        }
+
+        function drawHand(jointPoint, handColor) 
+        {
+            // draw semi transparent hand cicles
+            ctx.globalAlpha = 0.75;
+            ctx.beginPath();
+            ctx.fillStyle = handColor;
+            ctx.arc(jointPoint.depthX * 512, jointPoint.depthY * 424, HANDSIZE, 0, Math.PI * 2, true);
+            ctx.fill();
+            ctx.closePath();
+            ctx.globalAlpha = 1;
+        }
+
+        socket.on('bodyFrame', function(bodyFrame)
+        {
+            //console.log("socket.on('bodyFrame', function(bodyFrame)");
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            var index = 0;
+            bodyFrame.bodies.forEach(function(body)
+            {
+                if(body.tracked) 
+                {
+                    //console.log("body is tracked");
+                    
+                    for(var jointType in body.joints) 
+                    {
+                        var joint = body.joints[jointType];
+                        ctx.fillStyle = colors[index];
+                        ctx.fillRect(joint.depthX * 512, joint.depthY * 424, 10, 10);
+                    }
+                    //draw hand states
+                    updateHandState(body.leftHandState, body.joints[7]);
+                    updateHandState(body.rightHandState, body.joints[11]);
+
+                    gesturesAll(body);
+
+                    index++;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+
