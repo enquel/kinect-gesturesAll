@@ -359,15 +359,15 @@
             else if (mGesture == 1)
             {
                 document.getElementById("gesturePar").innerHTML = gestureName + "Hands Slide Out";
-                if (chUnderTheCitySceneUuid) {
-                    ch_socket.emit('goto', chUnderTheCitySceneUuid);
+                if (chIddleSceneUuid) {
+                    ch_socket.emit('goto', chIddleSceneUuid);
                 }
             }
             else if (mGesture == 2)
             {
                 document.getElementById("gesturePar").innerHTML = gestureName + "Hands Move Up";
-                if (chIddleSceneUuid) {
-                    ch_socket.emit('goto', chIddleSceneUuid);
+                if (chUnderTheCitySceneUuid) {
+                    ch_socket.emit('goto', chUnderTheCitySceneUuid);
                 }
             }
 
