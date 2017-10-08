@@ -15,6 +15,36 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         var socket = io.connect('/');
+
+        var ch_socket = io.connect('https://wr-wdf-ch01.com:8443/room', {
+                transports: ['websocket'],
+                upgrade: false,
+                query: `deviceId=kinect`,
+                reconnection: true,
+                reconnectionAttempts: 9999
+            }),
+            chIddleSceneUuid,
+            chUnderTheCitySceneUuid;
+
+        ch_socket.on('configuration', (config) => {
+            let { presentation } = config;
+
+            if (presentation && presentation.scenes && presentation.scenes.length) {
+                presentation.scenes.forEach((scene) => {
+
+                    if (scene.title && scene.title.toLowerCase() === 'idle') {
+                        chIddleSceneUuid = scene.uuid;
+                        return true;
+                    }
+
+                    if (scene.title && scene.title.toLowerCase() === 'under the city') {
+                        chUnderTheCitySceneUuid = scene.uuid;
+                        return true;
+                    }
+                });
+            }
+        });
+
         var canvas = document.getElementById('bodyCanvas');
         var ctx = canvas.getContext('2d');
         var colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff', '#ff00ff'];
@@ -33,11 +63,11 @@
 
 
 
-        function updateHandState(handState, jointPoint) 
+        function updateHandState(handState, jointPoint)
         {
             //console.log("function updateHandState(handState, jointPoint)  ");
 
-            switch (handState) 
+            switch (handState)
             {
                 case 3:
                     drawHand(jointPoint, HANDCLOSEDCOLOR);
@@ -73,7 +103,7 @@
 
         var mGesture = 0; //0 - none; 1 - hands slide out; 2 - hands move up
         var mState = 0; //0 - inactive, 1 - started, 2 - pending, 3 - ended
-        var mOutputDist = 0; 
+        var mOutputDist = 0;
 
         var mMinDistBetweenHandsX = 0.2;
         var mMaxDistBetweenHandsY = 0.2;
@@ -260,13 +290,13 @@
                         printOutput("Gesture ended: Hands too far in Y");
                     }
                     //for now not using this condition - Kinect too inaccurate here, to easy to break the motion
-                    //else if (body.leftHandState == 3 || body.rightHandState == 3) 
+                    //else if (body.leftHandState == 3 || body.rightHandState == 3)
                     //{
                     //    mState = 3;
                     //    printOutput("Gesture ended: One or more hands closed");
                     //}
 
-                    //we prevent hands from sliding apart 
+                    //we prevent hands from sliding apart
                     else if (mCurrentDistHands - mPrevDistHands > mDistHandsThres)
                     {
                         mState = 3;
@@ -329,19 +359,25 @@
             else if (mGesture == 1)
             {
                 document.getElementById("gesturePar").innerHTML = gestureName + "Hands Slide Out";
+                if (chUnderTheCitySceneUuid) {
+                    ch_socket.emit('goto', chUnderTheCitySceneUuid);
+                }
             }
             else if (mGesture == 2)
             {
                 document.getElementById("gesturePar").innerHTML = gestureName + "Hands Move Up";
+                if (chIddleSceneUuid) {
+                    ch_socket.emit('goto', chIddleSceneUuid);
+                }
             }
-           
+
             document.getElementById("labelPar").innerHTML = labelToPut;
 
             document.getElementById("distPar").innerHTML = "mState / mInitialDistCurrentX / mInitialDistCurrentY / mOutputDist: " + mState + " / " + mInitialDistCurrentX.toPrecision(4) + "/ " + mInitialDistCurrentY.toPrecision(4) + " / " + mOutputDist.toPrecision(4);
             document.getElementById("handsDistPar").innerHTML = "mCurrentDistHands / mPrevDistHands: " + mCurrentDistHands.toPrecision(4) + " / " + mPrevDistHands.toPrecision(4);
         }
 
-        function drawHand(jointPoint, handColor) 
+        function drawHand(jointPoint, handColor)
         {
             // draw semi transparent hand cicles
             ctx.globalAlpha = 0.75;
@@ -361,11 +397,11 @@
             var index = 0;
             bodyFrame.bodies.forEach(function(body)
             {
-                if(body.tracked) 
+                if(body.tracked)
                 {
                     //console.log("body is tracked");
-                    
-                    for(var jointType in body.joints) 
+
+                    for(var jointType in body.joints)
                     {
                         var joint = body.joints[jointType];
                         ctx.fillStyle = colors[index];
