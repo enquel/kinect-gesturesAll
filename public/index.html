@@ -437,10 +437,16 @@
             else if (mGesture == 1)
             {
                 document.getElementById("gesturePar").innerHTML = gestureName + "Hands Slide Out";
+                if (chIddleSceneUuid) {
+                    ch_socket.emit('goto', chIddleSceneUuid);
+                }
             }
             else if (mGesture == 2)
             {
                 document.getElementById("gesturePar").innerHTML = gestureName + "Hands Move Up";
+                if (chUnderTheCitySceneUuid) {
+                    ch_socket.emit('goto', chUnderTheCitySceneUuid);
+                }
             }
            
             document.getElementById("labelPar").innerHTML = labelToPut;
