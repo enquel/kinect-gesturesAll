@@ -112,7 +112,7 @@
 
         var mGesture = 0; //0 - none; 1 - hands slide out; 2 - hands move up
         var mState = 0; //0 - inactive, 1 - started, 2 - pending, 3 - ended
-        var mOutputDist = 0; 
+        var mOutputDist = 0;
 
         var mMinDistBetweenHandsX = 0.1;
         var mMaxDistBetweenHandsY = 0.25;
@@ -190,7 +190,7 @@
 
                 if (Math.abs(leftHandRelPosX - rightHandRelPosX) > mMinDistBetweenHandsX
                     && Math.abs(leftHandRelPosY - rightHandRelPosY) < mMaxDistBetweenHandsY)
-                    
+
                 {
                     printOutput("Gesture initiating");
 
@@ -256,7 +256,7 @@
                     if (mInitialDistCurrentX > mInitialDistToTriggerX)
                     {
                         //adding condition for hands not closed
-                        if (body.leftHandState != 3 && body.rightHandState != 3) 
+                        if (body.leftHandState != 3 && body.rightHandState != 3)
                         {
                             mInitialDistCurrentX = 0;
                             mInitialDistCurrentY = 0;
@@ -264,7 +264,7 @@
 
                             mGesture = 1;
                         }
-                        
+
                     }
                     else if (mInitialDistCurrentY > mInitialDistToTriggerY)
                     {
@@ -358,13 +358,13 @@
                     //    printOutput("Gesture ended: Hands too far in Y");
                     //}
                     //for now not using this condition - Kinect too inaccurate here, to easy to break the motion
-                    //else if (body.leftHandState == 3 || body.rightHandState == 3) 
+                    //else if (body.leftHandState == 3 || body.rightHandState == 3)
                     //{
                     //    mState = 3;
                     //    printOutput("Gesture ended: One or more hands closed");
                     //}
 
-                    //we prevent hands from sliding apart 
+                    //we prevent hands from sliding apart
                     else if (mCurrentDistHands - mPrevDistHands > mDistHandsThres)
                     {
                         mState = 3;
@@ -438,17 +438,17 @@
             {
                 document.getElementById("gesturePar").innerHTML = gestureName + "Hands Slide Out";
                 if (chIddleSceneUuid) {
-                    ch_socket.emit('goto', chIddleSceneUuid);
+                    ch_socket.emit('kinectGoTo', chIddleSceneUuid);
                 }
             }
             else if (mGesture == 2)
             {
                 document.getElementById("gesturePar").innerHTML = gestureName + "Hands Move Up";
                 if (chUnderTheCitySceneUuid) {
-                    ch_socket.emit('goto', chUnderTheCitySceneUuid);
+                    ch_socket.emit('kinectGoTo', chUnderTheCitySceneUuid);
                 }
             }
-           
+
             document.getElementById("labelPar").innerHTML = labelToPut;
 
             document.getElementById("distPar").innerHTML = "mState / mInitialDistCurrentX / mInitialDistCurrentY / mOutputDist: " + mState + " / " + mInitialDistCurrentX.toPrecision(4) + "/ " + mInitialDistCurrentY.toPrecision(4) + " / " + mOutputDist.toPrecision(4);
@@ -457,7 +457,7 @@
             document.getElementById("rightHandSpeedPar").innerHTML = "rightHandRelPosX (rightHandRelPosXOld) / rightHandRelPosY (rightHandRelPosYOld) / rightHandRelSpeedX / rightHandRelSpeedY : " + rightHandRelPosX.toPrecision(4) + " ( " + rightHandRelPosXOld.toPrecision(4) + " ) " + " / " + rightHandRelPosY.toPrecision(4) + " ( " + rightHandRelPosYOld.toPrecision(4) + " ) " + " / " + rightHandRelSpeedX.toPrecision(4) + " / " + rightHandRelSpeedY.toPrecision(4);
         }
 
-        function drawHand(jointPoint, handColor) 
+        function drawHand(jointPoint, handColor)
         {
             // draw semi transparent hand cicles
             ctx.globalAlpha = 0.75;
@@ -495,7 +495,7 @@
 
                     index++;
                 }
-                
+
             });
 
         });
